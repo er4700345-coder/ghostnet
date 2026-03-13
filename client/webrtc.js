@@ -1,48 +1,53 @@
 export default class WebRTCManager {
 
     constructor(socket, peerId) {
+
         this.socket = socket
         this.peerId = peerId
+
         this.connections = {}
         this.channels = {}
+
+        this.onMessage = null
+
     }
 
-    async connectToPeer(targetId) {
+    async connectToPeer(target) {
 
         const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: "stun:stun.l.google.com:19302" }
-            ]
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         })
 
-        this.connections[targetId] = pc
+        this.connections[target] = pc
 
         const channel = pc.createDataChannel("ghostnet")
 
-        this.setupChannel(targetId, channel)
+        this.setupChannel(target, channel)
 
         pc.onicecandidate = (event) => {
+
             if (event.candidate) {
+
                 this.socket.send(JSON.stringify({
                     type: "SIGNAL",
-                    target: targetId,
-                    signal: {
-                        candidate: event.candidate
-                    }
+                    target,
+                    signal: { candidate: event.candidate }
                 }))
+
             }
+
         }
 
         const offer = await pc.createOffer()
+
         await pc.setLocalDescription(offer)
 
         this.socket.send(JSON.stringify({
             type: "SIGNAL",
-            target: targetId,
-            signal: {
-                sdp: pc.localDescription
-            }
+            target,
+            signal: { sdp: pc.localDescription }
         }))
+
     }
 
     async handleSignal(from, signal) {
@@ -52,28 +57,31 @@ export default class WebRTCManager {
         if (!pc) {
 
             pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" }
-                ]
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
             })
 
             this.connections[from] = pc
 
             pc.ondatachannel = (event) => {
+
                 this.setupChannel(from, event.channel)
+
             }
 
             pc.onicecandidate = (event) => {
+
                 if (event.candidate) {
+
                     this.socket.send(JSON.stringify({
                         type: "SIGNAL",
                         target: from,
-                        signal: {
-                            candidate: event.candidate
-                        }
+                        signal: { candidate: event.candidate }
                     }))
+
                 }
+
             }
+
         }
 
         if (signal.sdp) {
@@ -89,11 +97,11 @@ export default class WebRTCManager {
                 this.socket.send(JSON.stringify({
                     type: "SIGNAL",
                     target: from,
-                    signal: {
-                        sdp: pc.localDescription
-                    }
+                    signal: { sdp: pc.localDescription }
                 }))
+
             }
+
         }
 
         if (signal.candidate) {
@@ -109,15 +117,21 @@ export default class WebRTCManager {
         this.channels[peerId] = channel
 
         channel.onopen = () => {
-            console.log("Connected to peer:", peerId)
+
+            console.log("Connected to peer", peerId)
+
         }
 
         channel.onmessage = (event) => {
-            console.log("Message from", peerId, event.data)
-        }
 
-        channel.onclose = () => {
-            console.log("Disconnected from", peerId)
+            const message = JSON.parse(event.data)
+
+            if (this.onMessage) {
+
+                this.onMessage(peerId, message)
+
+            }
+
         }
 
     }
@@ -127,7 +141,9 @@ export default class WebRTCManager {
         Object.values(this.channels).forEach(channel => {
 
             if (channel.readyState === "open") {
+
                 channel.send(JSON.stringify(message))
+
             }
 
         })

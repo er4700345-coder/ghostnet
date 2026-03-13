@@ -2,21 +2,17 @@ export default class NetworkMap {
 
     constructor() {
 
-        this.peers = new Set()
+        this.nodes = []
+        this.links = []
 
     }
 
-    addPeer(peerId) {
+    addConnection(a, b) {
 
-        this.peers.add(peerId)
+        this.nodes.push({ id: a })
+        this.nodes.push({ id: b })
 
-        this.render()
-
-    }
-
-    removePeer(peerId) {
-
-        this.peers.delete(peerId)
+        this.links.push({ source: a, target: b })
 
         this.render()
 
@@ -24,25 +20,14 @@ export default class NetworkMap {
 
     render() {
 
-        const container = document.getElementById("network")
+        const canvas = document.getElementById("network")
 
-        if (!container) return
+        if (!canvas) return
 
-        container.innerHTML = ""
-
-        this.peers.forEach(peer => {
-
-            const node = document.createElement("div")
-
-            node.innerText = peer
-
-            node.style.border = "1px solid white"
-            node.style.padding = "5px"
-            node.style.margin = "5px"
-
-            container.appendChild(node)
-
-        })
+        canvas.innerHTML = JSON.stringify({
+            nodes: this.nodes,
+            links: this.links
+        }, null, 2)
 
     }
 

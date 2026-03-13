@@ -1,14 +1,82 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>GhostNet</title>
+
+<title>GhostNet Network</title>
+
+<style>
+
+body{
+background:#0f0f0f;
+color:#e0e0e0;
+font-family:monospace;
+margin:20px;
+}
+
+h1{
+color:#00ff9f;
+}
+
+button{
+padding:10px;
+margin:5px;
+background:#1c1c1c;
+color:white;
+border:1px solid #00ff9f;
+cursor:pointer;
+}
+
+button:hover{
+background:#00ff9f;
+color:black;
+}
+
+#network{
+background:#111;
+padding:15px;
+border:1px solid #333;
+height:250px;
+overflow:auto;
+}
+
+#console{
+background:#000;
+padding:10px;
+height:200px;
+overflow:auto;
+border:1px solid #444;
+}
+
+input{
+padding:5px;
+margin:5px;
+}
+
+</style>
+
 </head>
 
 <body>
 
-<h1>GhostNet P2P Network</h1>
+<h1>🌐 GhostNet Distributed Network</h1>
 
-<button id="send">Send Broadcast</button>
+<h3>Network Controls</h3>
+
+<button id="store">Store DHT Data</button>
+<button id="find">Find DHT Data</button>
+
+<br>
+
+<input type="file" id="file">
+
+<h3>Network Topology</h3>
+
+<pre id="network"></pre>
+
+<h3>Debug Console</h3>
+
+<div id="console"></div>
 
 <script type="module" src="./main.js"></script>
 

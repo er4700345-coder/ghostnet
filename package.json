@@ -1,0 +1,13 @@
+{
+  "name": "ghostnet",
+  "version": "1.0.0",
+  "description": "Decentralized Peer to Peer Internet",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0",
+    "ws": "^8.13.0"
+  }
+}

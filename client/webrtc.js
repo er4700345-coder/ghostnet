@@ -8,14 +8,32 @@ export default class WebRTCManager {
         this.connections = {}
         this.channels = {}
 
-        this.onMessage = null
+        this.packetHandlers = {}
+
+        this.heartbeatInterval = 10000
+        this.health = {}
+
+        this.startHealthCheck()
+
+    }
+
+    registerHandler(type, handler) {
+
+        this.packetHandlers[type] = handler
 
     }
 
     async connectToPeer(target) {
 
+        if (this.connections[target]) return
+
         const pc = new RTCPeerConnection({
-            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" }
+            ]
+
         })
 
         this.connections[target] = pc
@@ -33,6 +51,16 @@ export default class WebRTCManager {
                     target,
                     signal: { candidate: event.candidate }
                 }))
+
+            }
+
+        }
+
+        pc.onconnectionstatechange = () => {
+
+            if (pc.connectionState === "disconnected") {
+
+                this.removePeer(target)
 
             }
 
@@ -57,7 +85,12 @@ export default class WebRTCManager {
         if (!pc) {
 
             pc = new RTCPeerConnection({
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" }
+                ]
+
             })
 
             this.connections[from] = pc
@@ -115,38 +148,107 @@ export default class WebRTCManager {
     setupChannel(peerId, channel) {
 
         this.channels[peerId] = channel
+        this.health[peerId] = Date.now()
 
         channel.onopen = () => {
 
-            console.log("Connected to peer", peerId)
+            console.log("Connected to peer:", peerId)
 
         }
 
         channel.onmessage = (event) => {
 
-            const message = JSON.parse(event.data)
+            const packet = JSON.parse(event.data)
 
-            if (this.onMessage) {
+            this.health[peerId] = Date.now()
 
-                this.onMessage(peerId, message)
+            if (packet.type && this.packetHandlers[packet.type]) {
+
+                this.packetHandlers[packet.type](peerId, packet)
 
             }
 
         }
 
+        channel.onclose = () => {
+
+            this.removePeer(peerId)
+
+        }
+
     }
 
-    broadcast(message) {
+    send(peerId, packet) {
 
-        Object.values(this.channels).forEach(channel => {
+        const channel = this.channels[peerId]
+
+        if (!channel) return
+
+        if (channel.readyState === "open") {
+
+            channel.send(JSON.stringify(packet))
+
+        }
+
+    }
+
+    broadcast(packet) {
+
+        Object.entries(this.channels).forEach(([peer, channel]) => {
 
             if (channel.readyState === "open") {
 
-                channel.send(JSON.stringify(message))
+                channel.send(JSON.stringify(packet))
 
             }
 
         })
+
+    }
+
+    route(packet, excludePeer = null) {
+
+        Object.entries(this.channels).forEach(([peer, channel]) => {
+
+            if (peer !== excludePeer && channel.readyState === "open") {
+
+                channel.send(JSON.stringify(packet))
+
+            }
+
+        })
+
+    }
+
+    removePeer(peerId) {
+
+        delete this.channels[peerId]
+        delete this.connections[peerId]
+        delete this.health[peerId]
+
+        console.log("Peer removed:", peerId)
+
+    }
+
+    startHealthCheck() {
+
+        setInterval(() => {
+
+            const now = Date.now()
+
+            Object.entries(this.health).forEach(([peer, lastSeen]) => {
+
+                if (now - lastSeen > this.heartbeatInterval * 3) {
+
+                    console.log("Peer timed out:", peer)
+
+                    this.removePeer(peer)
+
+                }
+
+            })
+
+        }, this.heartbeatInterval)
 
     }
 

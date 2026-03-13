@@ -1,0 +1,14 @@
+export const Protocol = {
+
+    DHT_STORE: "DHT_STORE",
+    DHT_FIND: "DHT_FIND",
+    DHT_RESPONSE: "DHT_RESPONSE",
+
+    FILE_CHUNK: "FILE_CHUNK",
+    FILE_REQUEST: "FILE_REQUEST",
+
+    PEER_SCORE: "PEER_SCORE",
+
+    ENCRYPTED: "ENCRYPTED"
+
+}

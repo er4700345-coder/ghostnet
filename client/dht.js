@@ -1,26 +1,33 @@
 export default class DHT {
 
     constructor(webrtc) {
+
         this.webrtc = webrtc
+
         this.storage = new Map()
-        this.pendingRequests = {}
+
+        this.pending = {}
+
     }
 
-    hashKey(key) {
+    hash(key) {
 
         let hash = 0
 
         for (let i = 0; i < key.length; i++) {
+
             hash = (hash << 5) - hash + key.charCodeAt(i)
             hash |= 0
+
         }
 
         return Math.abs(hash)
+
     }
 
     store(key, value) {
 
-        const hash = this.hashKey(key)
+        const hash = this.hash(key)
 
         this.storage.set(hash, value)
 
@@ -42,21 +49,21 @@ export default class DHT {
 
     }
 
-    async find(key) {
+    find(key) {
 
-        const hash = this.hashKey(key)
+        const hash = this.hash(key)
 
         if (this.storage.has(hash)) {
 
-            return this.storage.get(hash)
+            return Promise.resolve(this.storage.get(hash))
 
         }
 
         const requestId = crypto.randomUUID()
 
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
 
-            this.pendingRequests[requestId] = resolve
+            this.pending[requestId] = resolve
 
             this.webrtc.broadcast({
                 type: "DHT_FIND",
@@ -68,13 +75,13 @@ export default class DHT {
 
     }
 
-    handleFind(hash, requestId, fromPeer) {
+    handleFind(hash, requestId, from) {
 
         if (this.storage.has(hash)) {
 
             const value = this.storage.get(hash)
 
-            this.webrtc.channels[fromPeer].send(JSON.stringify({
+            this.webrtc.channels[from].send(JSON.stringify({
                 type: "DHT_RESPONSE",
                 requestId,
                 value
@@ -86,11 +93,11 @@ export default class DHT {
 
     handleResponse(requestId, value) {
 
-        if (this.pendingRequests[requestId]) {
+        if (this.pending[requestId]) {
 
-            this.pendingRequests[requestId](value)
+            this.pending[requestId](value)
 
-            delete this.pendingRequests[requestId]
+            delete this.pending[requestId]
 
         }
 

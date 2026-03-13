@@ -7,11 +7,30 @@ export default class WebRTCManager {
 
         this.connections = {}
         this.channels = {}
-
         this.packetHandlers = {}
 
-        this.heartbeatInterval = 10000
         this.health = {}
+        this.heartbeatInterval = 10000
+
+        this.rtcConfig = {
+
+            iceServers: [
+
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+
+                {
+                    urls: "turn:relay.metered.ca:80",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                }
+
+            ],
+
+            iceCandidatePoolSize: 10
+
+        }
 
         this.startHealthCheck()
 
@@ -27,14 +46,7 @@ export default class WebRTCManager {
 
         if (this.connections[target]) return
 
-        const pc = new RTCPeerConnection({
-
-            iceServers: [
-                { urls: "stun:stun.l.google.com:19302" },
-                { urls: "stun:stun1.l.google.com:19302" }
-            ]
-
-        })
+        const pc = new RTCPeerConnection(this.rtcConfig)
 
         this.connections[target] = pc
 
@@ -47,9 +59,11 @@ export default class WebRTCManager {
             if (event.candidate) {
 
                 this.socket.send(JSON.stringify({
+
                     type: "SIGNAL",
                     target,
                     signal: { candidate: event.candidate }
+
                 }))
 
             }
@@ -58,7 +72,10 @@ export default class WebRTCManager {
 
         pc.onconnectionstatechange = () => {
 
-            if (pc.connectionState === "disconnected") {
+            if (
+                pc.connectionState === "disconnected" ||
+                pc.connectionState === "failed"
+            ) {
 
                 this.removePeer(target)
 
@@ -71,9 +88,11 @@ export default class WebRTCManager {
         await pc.setLocalDescription(offer)
 
         this.socket.send(JSON.stringify({
+
             type: "SIGNAL",
             target,
             signal: { sdp: pc.localDescription }
+
         }))
 
     }
@@ -84,14 +103,7 @@ export default class WebRTCManager {
 
         if (!pc) {
 
-            pc = new RTCPeerConnection({
-
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" }
-                ]
-
-            })
+            pc = new RTCPeerConnection(this.rtcConfig)
 
             this.connections[from] = pc
 
@@ -106,9 +118,11 @@ export default class WebRTCManager {
                 if (event.candidate) {
 
                     this.socket.send(JSON.stringify({
+
                         type: "SIGNAL",
                         target: from,
                         signal: { candidate: event.candidate }
+
                     }))
 
                 }
@@ -119,7 +133,9 @@ export default class WebRTCManager {
 
         if (signal.sdp) {
 
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+            await pc.setRemoteDescription(
+                new RTCSessionDescription(signal.sdp)
+            )
 
             if (signal.sdp.type === "offer") {
 
@@ -128,9 +144,11 @@ export default class WebRTCManager {
                 await pc.setLocalDescription(answer)
 
                 this.socket.send(JSON.stringify({
+
                     type: "SIGNAL",
                     target: from,
                     signal: { sdp: pc.localDescription }
+
                 }))
 
             }
@@ -139,7 +157,17 @@ export default class WebRTCManager {
 
         if (signal.candidate) {
 
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+            try {
+
+                await pc.addIceCandidate(
+                    new RTCIceCandidate(signal.candidate)
+                )
+
+            } catch (err) {
+
+                console.error("ICE error", err)
+
+            }
 
         }
 
@@ -158,7 +186,19 @@ export default class WebRTCManager {
 
         channel.onmessage = (event) => {
 
-            const packet = JSON.parse(event.data)
+            let packet
+
+            try {
+
+                packet = JSON.parse(event.data)
+
+            } catch {
+
+                console.warn("Invalid packet")
+
+                return
+
+            }
 
             this.health[peerId] = Date.now()
 
@@ -171,6 +211,12 @@ export default class WebRTCManager {
         }
 
         channel.onclose = () => {
+
+            this.removePeer(peerId)
+
+        }
+
+        channel.onerror = () => {
 
             this.removePeer(peerId)
 
@@ -240,7 +286,7 @@ export default class WebRTCManager {
 
                 if (now - lastSeen > this.heartbeatInterval * 3) {
 
-                    console.log("Peer timed out:", peer)
+                    console.log("Peer timeout:", peer)
 
                     this.removePeer(peer)
 
